@@ -4,6 +4,8 @@ from gpu_reliability.platforms.base import PlatformType, PlatformBase, INSTANCE_
 from click import secho
 from google.oauth2.service_account import Credentials
 from gpu_reliability.stats_logger import StatsLogger, Stat
+from google.api_core.exceptions import NotFound
+
 
 class GCPPlatform(PlatformBase):
     def __init__(
@@ -39,6 +41,7 @@ class GCPPlatform(PlatformBase):
         self.image_client = compute_v1.ImagesClient(credentials=credentials)
         self.instance_client = compute_v1.InstancesClient(credentials=credentials)
 
+    @property
     def platform_type(self) -> PlatformType:
         return PlatformType.GCP
 
@@ -98,14 +101,14 @@ class GCPPlatform(PlatformBase):
         )
 
         # Wait for the create operation to complete.
-        secho(f"Creating the {instance_name} instance...", fg="yellow")
+        secho(f"Creating instance `{instance_name}`...", fg="yellow")
 
         operation = self.instance_client.insert(request=request)
         operation.result(timeout=self.create_timeout)
 
         self.log_operation_status(operation)
 
-        secho(f"Instance {instance_name} created.", fg="green")
+        secho(f"Finished creating instance `{instance_name}`", fg="green")
         created_instance = self.instance_client.get(project=self.project_id, zone=self.zone, instance=instance_name)
 
         # Check status
@@ -169,5 +172,9 @@ class GCPPlatform(PlatformBase):
                     pass
                 secho(f"Deleting `{instance.name}`", fg="yellow")
                 operation = self.instance_client.delete(project=self.project_id, zone=zone, instance=instance.name)
-                result = operation.result(timeout=self.delete_timeout)
-                secho(f"Finished `{instance.name}`", fg="green")
+                try:
+                    operation.result(timeout=self.delete_timeout)
+                except NotFound:
+                    # Expected error because once instances are deleted the API can't retrieve them
+                    pass
+                secho(f"Finished deleting `{instance.name}`", fg="green")

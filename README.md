@@ -24,3 +24,7 @@ GCP:
 ```
 Operation type [insert] failed with message "The zone 'projects/{project}/zones/{zone}' does not have enough resources available to fulfill the request. Try a different zone, or try again later."
 ```
+
+```
+Resource exhausted (HTTP 429): ZONE_RESOURCE_POOL_EXHAUSTED
+```

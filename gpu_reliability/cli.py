@@ -56,15 +56,25 @@ def benchmark(
 
     platforms = [gcp]
 
-    while True:
-        # Healthcheck of threads; if they have quit, restart them
-        for platform in platforms:
-            if not platform.is_spawned:
-                platform.spawn()
+    for platform in platforms:
+        # Spawn on startup to provide a baseline
+        platform.set_should_launch(True)
 
-        # Spawn all at the same time
-        with sample_timing(daily_samples, sleep_interval, total_time_seconds=60*60*24) as should_run:
-            if should_run:
-                for platform in platforms:
-                    secho(f"Trigger launch: `{platform.platform_type}`")
-                    platform.set_should_launch(True)
+    try:
+        while True:
+            # Healthcheck of threads; if they have quit, restart them
+            for platform in platforms:
+                if not platform.is_spawned:
+                    platform.spawn()
+
+            # Spawn all at the same time
+            with sample_timing(daily_samples, sleep_interval, total_time_seconds=60*60*24) as should_run:
+                if should_run:
+                    for platform in platforms:
+                        secho(f"Trigger launch: `{platform.platform_type}`")
+                        platform.set_should_launch(True)
+    except KeyboardInterrupt:
+        # Close the running threads
+        for platform in platforms:
+            platform.quit()
+            platform.join()

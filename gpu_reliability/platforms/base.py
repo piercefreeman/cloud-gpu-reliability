@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 from threading import Thread
 from time import sleep
 from uuid import uuid4
@@ -80,7 +80,8 @@ class PlatformBase(ABC):
         """
         pass
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def platform_type(self) -> PlatformType:
         """
         Uniquely identify this platform, exclusively used in the output logging
@@ -109,3 +110,7 @@ class PlatformBase(ABC):
 
         self.thread = Thread(target=self.do_work)
         self.thread.start()
+
+    def join(self):
+        if self.thread is not None:
+            self.thread.join()
