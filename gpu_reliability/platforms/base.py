@@ -11,12 +11,20 @@ INSTANCE_TAG_VALUE = "true"
 
 
 class PlatformBase(ABC):
-    def __init__(self, logger: StatsLogger):
+    def __init__(self, logger: StatsLogger, cleanup_interval=60):
+        """
+        :param cleanup_interval: How often to clean up resources (in seconds) even if we haven't
+            actively launched an instance. Used for garbage collection in the case of unrecoverable
+            crashes.
+
+        """
         self.thread = None
         self.logger = logger
+        self.cleanup_interval = cleanup_interval
 
         self.should_launch = False
         self.launch_identifier = None
+        self.should_quit = False
 
     def set_should_launch(self, should_launch: bool):
         """
@@ -26,7 +34,12 @@ class PlatformBase(ABC):
         self.should_launch = should_launch
         self.launch_identifier = uuid4() if should_launch else None
 
+    def quit(self):
+        self.should_quit = True
+
     def do_work(self):
+        until_cleanup = self.cleanup_interval
+
         while True:
             if self.should_launch:
                 try:
@@ -43,8 +56,20 @@ class PlatformBase(ABC):
                     raise
                 finally:
                     self.set_should_launch(False)
-            sleep(60)
-            self.cleanup_resources()
+                    self.cleanup_resources()
+
+            if self.should_quit:
+                return
+
+            # This event loop effectively runs every second
+            # This is convenient because it allows us to quickly respond to quit signals
+            # while still ensuring that we have a timer counting for the cleanup
+            sleep(1)
+
+            until_cleanup -= 1
+            if until_cleanup <= 0:
+                until_cleanup = self.cleanup_interval
+                self.cleanup_resources()
 
     @abstractmethod
     def launch_instance(self):
@@ -73,12 +98,14 @@ class PlatformBase(ABC):
         """
         pass
 
+    @property
     def is_spawned(self):
         return self.thread is not None and self.thread.is_alive()
 
     def spawn(self):
         # Spawn the worker logic in a separate thread
-        if self.is_spawned():
+        if self.is_spawned:
             raise Exception("Already running")
 
         self.thread = Thread(target=self.do_work)
+        self.thread.start()

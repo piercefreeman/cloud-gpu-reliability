@@ -59,7 +59,7 @@ def benchmark(
     while True:
         # Healthcheck of threads; if they have quit, restart them
         for platform in platforms:
-            if not platform.is_spawned():
+            if not platform.is_spawned:
                 platform.spawn()
 
         # Spawn all at the same time
