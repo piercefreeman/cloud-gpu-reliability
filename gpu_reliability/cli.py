@@ -67,4 +67,4 @@ def benchmark(
             if should_run:
                 for platform in platforms:
                     secho(f"Trigger launch: `{platform.platform_type}`")
-                    platform.set_should_launch()
+                    platform.set_should_launch(True)

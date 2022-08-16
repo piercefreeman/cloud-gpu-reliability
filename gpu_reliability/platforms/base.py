@@ -1,39 +1,48 @@
-from enum import Enum, unique
 from abc import ABC, abstractmethod, abstractproperty
 from threading import Thread
 from time import sleep
+from uuid import uuid4
+from gpu_reliability.enums import PlatformType
+from gpu_reliability.stats_logger import StatsLogger, Stat
 
 
 INSTANCE_TAG = "gpu-reliability-test"
 INSTANCE_TAG_VALUE = "true"
 
 
-@unique
-class PlatformType(Enum):
-    GCP = "GCP"
-    AWS = "AWS"
-
-
 class PlatformBase(ABC):
-    def __init__(self, logger: "StatsLogger"):
+    def __init__(self, logger: StatsLogger):
         self.thread = None
-        self.should_launch = False
         self.logger = logger
 
-    def set_should_launch(self):
+        self.should_launch = False
+        self.launch_identifier = None
+
+    def set_should_launch(self, should_launch: bool):
         """
         When called, the worker thread will create a GPU instance on the next
         possible occasion in its runloop
         """
-        self.should_launch = True
+        self.should_launch = should_launch
+        self.launch_identifier = uuid4() if should_launch else None
 
     def do_work(self):
         while True:
             if self.should_launch:
                 try:
                     self.launch_instance()
+                except Exception as e:
+                    self.logger.write(
+                        Stat(
+                            platform=self.platform_type,
+                            launch_identifier=self.launch_identifier,
+                            create_success=False,
+                            error=str(e)
+                        )
+                    )
+                    raise
                 finally:
-                    self.should_launch = False
+                    self.set_should_launch(False)
             sleep(60)
             self.cleanup_resources()
 

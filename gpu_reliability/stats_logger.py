@@ -3,10 +3,10 @@ from pathlib import Path
 from dataclasses import dataclass, asdict, field
 from json import dumps, JSONEncoder
 from datetime import datetime
-from gpu_reliability.platforms.base import PlatformType
+from gpu_reliability.enums import PlatformType
 from threading import Lock
 from uuid import UUID
-from typing import Optional
+from typing import Optional, List
 from enum import Enum
 
 
@@ -27,8 +27,9 @@ class Stat:
     launch_identifier: UUID
     create_success: bool
 
-    launch_error: Optional[str] = None
+    error: Optional[str] = None
     timestamp: datetime = field(default_factory=datetime.now)
+    warnings: List[str] = field(default_factory=list)
 
 
 class StatsLogger:

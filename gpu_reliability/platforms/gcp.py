@@ -3,7 +3,7 @@ from time import time
 from gpu_reliability.platforms.base import PlatformType, PlatformBase, INSTANCE_TAG, INSTANCE_TAG_VALUE
 from click import secho
 from google.oauth2.service_account import Credentials
-from gpu_reliability.stats_logger import StatsLogger
+from gpu_reliability.stats_logger import StatsLogger, Stat
 
 class GCPPlatform(PlatformBase):
     def __init__(
@@ -98,20 +98,50 @@ class GCPPlatform(PlatformBase):
         )
 
         # Wait for the create operation to complete.
-        secho(f"Creating the {instance_name} instance...", fg="green")
+        secho(f"Creating the {instance_name} instance...", fg="yellow")
 
         operation = self.instance_client.insert(request=request)
+        operation.result(timeout=self.create_timeout)
 
-        result = operation.result(timeout=self.create_timeout)
+        self.log_operation_status(operation)
 
-        print(f"Instance {instance_name} created.")
+        secho(f"Instance {instance_name} created.", fg="green")
         created_instance = self.instance_client.get(project=self.project_id, zone=self.zone, instance=instance_name)
 
-        # check status
-        print(created_instance.status)
-        print(created_instance.status_message)
+        # Check status
+        self.logger.write(
+            Stat(
+                platform=self.platform_type,
+                launch_identifier=self.launch_identifier,
+                create_success=created_instance.status == "RUNNING",
+                error=created_instance.status,
+            )
+        )
 
         self.cleanup_resources()
+
+    def log_operation_status(self, operation):
+        error = None
+        warnings = []
+
+        if operation.error_code:
+            error = f"[Code: {operation.error_code}]: {operation.error_message}"
+
+        if operation.warnings:
+            for warning in operation.warnings:
+                warnings.append(
+                    f"[Code: {warning.code}]: {warning.message}"
+                )
+
+        self.logger.write(
+            Stat(
+                platform=self.platform_type,
+                launch_identifier=self.launch_identifier,
+                create_success=error is None,
+                error=error,
+                warnings=warnings,
+            )
+        )
 
     def get_image(self) -> compute_v1.Image:
         # List of public operating system (OS) images: https://cloud.google.com/compute/docs/images/os-details
@@ -119,6 +149,8 @@ class GCPPlatform(PlatformBase):
         return newest_image
 
     def cleanup_resources(self):
+        # Search through all zones in case we have modified the self.zone paramter
+        # and still have remaining instances in other zones.
         active_instances = self.instance_client.aggregated_list(
             request=compute_v1.AggregatedListInstancesRequest(
                 filter=f"labels.{INSTANCE_TAG}={INSTANCE_TAG_VALUE}",
