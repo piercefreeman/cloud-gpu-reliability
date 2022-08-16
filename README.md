@@ -1,4 +1,4 @@
-# cloud- gpu-reliability
+# cloud-gpu-reliability
 
 After encountering some reliability issues with on-demand provisioning of GPU resources, I put together this benchmarking harness to test AWS vs. GCP availability.
 

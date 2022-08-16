@@ -2,7 +2,6 @@ from enum import Enum, unique
 from abc import ABC, abstractmethod, abstractproperty
 from threading import Thread
 from time import sleep
-from gpu_reliability.stats_logger import StatsLogger
 
 
 INSTANCE_TAG = "gpu-reliability-test"
@@ -16,7 +15,7 @@ class PlatformType(Enum):
 
 
 class PlatformBase(ABC):
-    def __init__(self, logger: StatsLogger):
+    def __init__(self, logger: "StatsLogger"):
         self.thread = None
         self.should_launch = False
         self.logger = logger
