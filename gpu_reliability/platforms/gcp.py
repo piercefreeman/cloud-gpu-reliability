@@ -15,7 +15,7 @@ class GCPPlatform(PlatformBase):
         accelerator_type: str,
         spot: bool,
         logger: StatsLogger,
-        create_timeout: int = 120,
+        create_timeout: int = 200,
         delete_timeout: int = 300,
     ):
         """
@@ -42,7 +42,7 @@ class GCPPlatform(PlatformBase):
     def platform_type(self) -> PlatformType:
         return PlatformType.GCP
 
-    def __call__(self):
+    def launch_instance(self):
         instance_name = f"gpu-test-{int(time())}"
 
         instance = compute_v1.Instance(
@@ -106,6 +106,10 @@ class GCPPlatform(PlatformBase):
 
         print(f"Instance {instance_name} created.")
         created_instance = self.instance_client.get(project=self.project_id, zone=self.zone, instance=instance_name)
+
+        # check status
+        print(created_instance.status)
+        print(created_instance.status_message)
 
         self.cleanup_resources()
 

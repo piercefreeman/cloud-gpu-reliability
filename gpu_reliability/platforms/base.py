@@ -34,7 +34,7 @@ class PlatformBase(ABC):
                     self.launch_instance()
                 finally:
                     self.should_launch = False
-            sleep(10)
+            sleep(60)
             self.cleanup_resources()
 
     @abstractmethod
