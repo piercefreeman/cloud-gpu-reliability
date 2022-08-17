@@ -1,5 +1,5 @@
 from time import time, sleep
-from gpu_reliability.platforms.base import PlatformType, PlatformBase, INSTANCE_TAG, INSTANCE_TAG_VALUE
+from gpu_reliability.platforms.base import PlatformType, PlatformBase, LaunchRequest, INSTANCE_TAG, INSTANCE_TAG_VALUE
 from click import secho
 from boto3 import Session
 from gpu_reliability.stats_logger import StatsLogger, Stat
@@ -20,47 +20,43 @@ class AWSPlatform(PlatformBase):
         self,
         #access_key: str,
         #secret_key: str,
-        region: str,
         machine_type: str,
-        spot: bool,
         logger: StatsLogger,
         create_timeout: int = 200,
         delete_timeout: int = 300,
     ):
         """
         :param service_account_path: Path to the service account JSON file
-        :param machine_type: For custom types, format as: `custom-CPUS-MEMORY` populating CPU and MEMORY counts
-        :param accelerator_type: To view the accelerators available in the given zone:
-            `gcloud compute accelerator-types list --filter="zone:( us-central1-b us-east-a )"`
+        :param machine_type: AWS supported machine type
 
         """
         super().__init__(logger=logger)
-        self.region = region
         self.machine_type = machine_type
-        self.spot = spot
 
         self.create_timeout = create_timeout
         self.delete_timeout = delete_timeout
 
-        session = Session(
+        self.session = Session(
             #aws_access_key_id=access_key,
             #aws_secret_access_key=secret_key,
         )
-
-        self.client = session.client("ec2", region_name=region)
-        self.resource = session.resource("ec2", region_name=region)
 
     @property
     def platform_type(self) -> PlatformType:
         return PlatformType.AWS
 
-    def launch_instance(self):
+    def launch_instance(self, request: LaunchRequest):
+        # Init the resources based on the region request since all downstream
+        # requests that use these resources will be made in the same region
+        client = self.session.client("ec2", region_name=request.geography)
+        resource = self.session.resource("ec2", region_name=request.geography)
+
         instance_name = f"gpu-test-{int(time())}"
 
         # Custom options that can be configured by init parameters
         additional_options = {}
 
-        if self.spot:
+        if request.spot:
             additional_options["InstanceMarketOptions"] = {
                 "MarketType": "spot",
                 "SpotOptions": {
@@ -73,7 +69,7 @@ class AWSPlatform(PlatformBase):
         secho(f"Creating instance `{instance_name}`...", fg="yellow")
 
         # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.run_instances
-        created_instance = self.client.run_instances(
+        created_instance = client.run_instances(
             BlockDeviceMappings=[
                 {
                     "DeviceName": "/dev/xvda",
@@ -118,6 +114,7 @@ class AWSPlatform(PlatformBase):
             instance_id,
             lambda x: x != AWSInstanceCodes.PENDING,
             self.create_timeout,
+            resource=resource,
         )
 
         secho(f"Finished creating instance `{instance_name}`", fg="green")
@@ -139,49 +136,58 @@ class AWSPlatform(PlatformBase):
         )
 
     def cleanup_resources(self):
-        instances = self.resource.instances.filter(
-            Filters=[
-                {
-                    "Name": f"tag:{INSTANCE_TAG}",
-                    "Values": [
-                        INSTANCE_TAG_VALUE
-                    ]
-                },
-                {
-                    # Only attempt to terminate instances that are fully running and where shutdown
-                    # actions haven't yet been taken
-                    "Name": "instance-state-name",
-                    "Values": [
-                        "running",
-                    ],
-                }
-            ]
-        )
+        # Choose a random region since we just need to list this
+        simple_client = self.session.client("ec2", "us-east-1")
+        regions = [region["RegionName"] for region in simple_client.describe_regions()["Regions"]]
 
-        for instance in instances:
-            instance_id = instance.instance_id
-            instances.terminate()
-
-            secho(f"Deleting `{instance_id}`...", fg="yellow")
-
-            self.wait_for_status(
-                instance_id,
-                lambda x: x == AWSInstanceCodes.TERMINATED,
-                self.delete_timeout
+        for region in regions:
+            resource = self.session.resource("ec2", region_name=region)
+            instances = resource.instances.filter(
+                Filters=[
+                    {
+                        "Name": f"tag:{INSTANCE_TAG}",
+                        "Values": [
+                            INSTANCE_TAG_VALUE
+                        ]
+                    },
+                    {
+                        # Only attempt to terminate instances that are fully running and where shutdown
+                        # actions haven't yet been taken
+                        "Name": "instance-state-name",
+                        "Values": [
+                            "running",
+                        ],
+                    }
+                ]
             )
 
-            secho(f"Finished deleting `{instance_id}`", fg="green")
+            for instance in instances:
+                instance_id = instance.instance_id
+                instances.terminate()
+
+                instance_name = self.name_from_instance(instance)
+                secho(f"Deleting `{instance_name}`...", fg="yellow")
+
+                self.wait_for_status(
+                    instance_id,
+                    lambda x: x == AWSInstanceCodes.TERMINATED,
+                    self.delete_timeout,
+                    resource=resource,
+                )
+
+                secho(f"Finished deleting `{instance_name}`", fg="green")
 
     def wait_for_status(
         self,
         instance_id: str,
         break_condition,
         max_wait: int,
-        check_interval: int = 10
+        resource: Session.resource,
+        check_interval: int = 10,
     ):
         while max_wait > 0:
-            instance = self.resource.Instance(instance_id)
-            instance_name = [tag for tag in instance.tags if tag["Key"] == "Name"][0]
+            instance = resource.Instance(instance_id)
+            instance_name = self.name_from_instance(instance)
             state_type = AWSInstanceCodes(instance.state["Code"])
             secho(f"{instance_name} - {state_type}")
 
@@ -193,3 +199,6 @@ class AWSPlatform(PlatformBase):
             max_wait -= check_interval
 
         raise TimeoutError(f"Instance `{instance_id}` did not reach break condition`")
+
+    def name_from_instance(self, instance: Session.resource.Instance):
+        return [tag for tag in instance.tags if tag["Key"] == "Name"][0]["Value"]

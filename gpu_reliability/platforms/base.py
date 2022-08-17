@@ -4,10 +4,20 @@ from time import sleep
 from uuid import uuid4
 from gpu_reliability.enums import PlatformType
 from gpu_reliability.stats_logger import StatsLogger, Stat
+from dataclasses import dataclass
+from typing import Optional
 
 
 INSTANCE_TAG = "gpu-reliability-test"
 INSTANCE_TAG_VALUE = "true"
+
+
+@dataclass
+class LaunchRequest:
+    spot: bool
+    # Corresponds to region/zone where instance is spawned. AWS and GCP have different levels
+    # of granularity required here during spawning so we keep this key generic.
+    geography: str
 
 
 class PlatformBase(ABC):
@@ -22,11 +32,11 @@ class PlatformBase(ABC):
         self.logger = logger
         self.cleanup_interval = cleanup_interval
 
-        self.should_launch = False
+        self.should_launch: Optional[LaunchRequest] = None
         self.launch_identifier = None
         self.should_quit = False
 
-    def set_should_launch(self, should_launch: bool):
+    def set_should_launch(self, should_launch: LaunchRequest):
         """
         When called, the worker thread will create a GPU instance on the next
         possible occasion in its runloop
@@ -43,7 +53,7 @@ class PlatformBase(ABC):
         while True:
             if self.should_launch:
                 try:
-                    self.launch_instance()
+                    self.launch_instance(self.should_launch)
                 except Exception as e:
                     self.logger.write(
                         Stat(
@@ -55,7 +65,7 @@ class PlatformBase(ABC):
                     )
                     raise
                 finally:
-                    self.set_should_launch(False)
+                    self.set_should_launch(None)
                     self.cleanup_resources()
 
             if self.should_quit:

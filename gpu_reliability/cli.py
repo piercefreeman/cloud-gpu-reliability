@@ -2,8 +2,9 @@ from click import command, option, Path as ClickPath, secho
 from gpu_reliability.platforms.gcp import GCPPlatform
 from gpu_reliability.platforms.aws import AWSPlatform
 from gpu_reliability.stats_logger import StatsLogger
+from gpu_reliability.platforms.base import LaunchRequest, PlatformType
 from time import sleep
-from random import random
+from random import random, choice
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -29,6 +30,21 @@ def sample_timing(samples: int, sleep_interval_seconds: int, total_time_seconds:
     sleep(sleep_interval_seconds)
 
 
+SPOT_STATUS = [False]
+GCP_ZONES = [
+    "us-central1-b"
+]
+AWS_REGIONS = [
+    "us-east-1",
+]
+
+def create_random_request(platform_type: PlatformType) -> LaunchRequest:
+    return LaunchRequest(
+        spot=choice(SPOT_STATUS),
+        geography=choice(GCP_ZONES if platform_type == PlatformType.GCP else AWS_REGIONS),
+    )
+
+
 @command()
 @option("--aws-service-account", type=ClickPath(exists=True), required=False)
 @option("--gcp-project", type=str, required=True)
@@ -48,24 +64,20 @@ def benchmark(
     platforms = [
         # GCPPlatform(
         #     project_id=gcp_project,
-        #     zone="us-central1-b",
         #     machine_type="n1-standard-1",
         #     accelerator_type="nvidia-tesla-t4",
-        #     spot=False,
         #     service_account_path=gcp_service_account,
         #     logger=storage,
         # ),
         AWSPlatform(
-            region="us-east-1",
-            machine_type="t3.micro",
-            spot=False,
+            machine_type="g4dn.xlarge",
             logger=storage,
         )
     ]
 
     for platform in platforms:
         # Spawn on startup to provide a baseline
-        platform.set_should_launch(True)
+        platform.set_should_launch(create_random_request(platform.platform_type))
 
     try:
         while True:
@@ -79,7 +91,7 @@ def benchmark(
                 if should_run:
                     for platform in platforms:
                         secho(f"Trigger launch: `{platform.platform_type}`")
-                        platform.set_should_launch(True)
+                        platform.set_should_launch(create_random_request(platform.platform_type))
     except KeyboardInterrupt:
         secho("Shutdown triggered, cleaning up resources...", fg="red")
         # Close the running threads
