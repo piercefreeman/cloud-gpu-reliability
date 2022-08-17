@@ -121,8 +121,6 @@ class GCPPlatform(PlatformBase):
             )
         )
 
-        self.cleanup_resources()
-
     def log_operation_status(self, operation):
         error = None
         warnings = []
@@ -170,7 +168,7 @@ class GCPPlatform(PlatformBase):
                 # boxes that are still trying to bootstrap and/or have already started terminating.
                 if instance.status != "RUNNING":
                     pass
-                secho(f"Deleting `{instance.name}`", fg="yellow")
+                secho(f"Deleting `{instance.name}`...", fg="yellow")
                 operation = self.instance_client.delete(project=self.project_id, zone=zone, instance=instance.name)
                 try:
                     operation.result(timeout=self.delete_timeout)

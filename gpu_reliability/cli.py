@@ -1,5 +1,6 @@
 from click import command, option, Path as ClickPath, secho
 from gpu_reliability.platforms.gcp import GCPPlatform
+from gpu_reliability.platforms.aws import AWSPlatform
 from gpu_reliability.stats_logger import StatsLogger
 from time import sleep
 from random import random
@@ -44,17 +45,23 @@ def benchmark(
 ):
     storage = StatsLogger(Path(output_path).expanduser())
 
-    gcp = GCPPlatform(
-        project_id=gcp_project,
-        zone="us-central1-b",
-        machine_type="n1-standard-1",
-        accelerator_type="nvidia-tesla-t4",
-        spot=False,
-        service_account_path=gcp_service_account,
-        logger=storage,
-    )
-
-    platforms = [gcp]
+    platforms = [
+        # GCPPlatform(
+        #     project_id=gcp_project,
+        #     zone="us-central1-b",
+        #     machine_type="n1-standard-1",
+        #     accelerator_type="nvidia-tesla-t4",
+        #     spot=False,
+        #     service_account_path=gcp_service_account,
+        #     logger=storage,
+        # ),
+        AWSPlatform(
+            region="us-east-1",
+            machine_type="t3.micro",
+            spot=False,
+            logger=storage,
+        )
+    ]
 
     for platform in platforms:
         # Spawn on startup to provide a baseline
@@ -74,6 +81,7 @@ def benchmark(
                         secho(f"Trigger launch: `{platform.platform_type}`")
                         platform.set_should_launch(True)
     except KeyboardInterrupt:
+        secho("Shutdown triggered, cleaning up resources...", fg="red")
         # Close the running threads
         for platform in platforms:
             platform.quit()
