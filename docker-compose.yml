@@ -12,5 +12,6 @@ services:
       "run",
       "benchmark",
       "--output-path", "/data/results.jsonl",
+      "--daily-samples", "200",
     ]
     restart: always

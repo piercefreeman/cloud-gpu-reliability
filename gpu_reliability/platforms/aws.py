@@ -167,9 +167,10 @@ class AWSPlatform(PlatformBase):
 
             for instance in instances:
                 instance_id = instance.instance_id
+                instance_name = self.name_from_instance(instance)
+
                 instances.terminate()
 
-                instance_name = self.name_from_instance(instance)
                 self.logger.info(f"Deleting `{instance_name}`...")
 
                 self.wait_for_status(
@@ -189,9 +190,11 @@ class AWSPlatform(PlatformBase):
         resource: Session.resource,
         check_interval: int = 10,
     ):
+        instance = resource.Instance(instance_id)
+        instance_name = self.name_from_instance(instance)
+
         while max_wait > 0:
             instance = resource.Instance(instance_id)
-            instance_name = self.name_from_instance(instance)
             state_type = AWSInstanceCodes(instance.state["Code"])
             self.logger.info(f"Status `{instance_name}`: {state_type}")
 

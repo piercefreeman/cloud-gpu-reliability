@@ -92,7 +92,7 @@ class GCPPlatform(PlatformBase):
             instance.scheduling.instance_termination_action = "DELETE"
 
         # Prepare the request to insert an instance.
-        request = compute_v1.InsertInstanceRequest(
+        create_request = compute_v1.InsertInstanceRequest(
             zone=request.geography,
             project=self.project_id,
             instance_resource=instance,
@@ -101,7 +101,7 @@ class GCPPlatform(PlatformBase):
         # Wait for the create operation to complete.
         self.logger.info(f"Creating instance `{instance_name}`...")
 
-        operation = self.instance_client.insert(request=request)
+        operation = self.instance_client.insert(request=create_request)
         start = time()
         operation.result(timeout=self.create_timeout)
         create_time = time() - start
@@ -118,7 +118,7 @@ class GCPPlatform(PlatformBase):
                 request=self.should_launch,
                 create_success=created_instance.status == "RUNNING",
                 create_seconds=create_time,
-                error=created_instance.status,
+                error=created_instance.status if created_instance.status != "RUNNING" else None,
             )
         )
 

@@ -64,13 +64,13 @@ def benchmark(
             machine_type="n1-standard-1",
             accelerator_type="nvidia-tesla-t4",
             service_account=settings.gcp_service_account,
-            logger=storage,
+            storage=storage,
         ),
         AWSPlatform(
             access_key_id=settings.aws_access_key_id,
             secret_key=settings.aws_access_secret_key,
             machine_type="g4dn.xlarge",
-            logger=storage,
+            storage=storage,
         )
     ]
 

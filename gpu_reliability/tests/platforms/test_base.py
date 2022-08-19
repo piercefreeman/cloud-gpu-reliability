@@ -28,7 +28,7 @@ class SuccessfulPlatform(PlatformBase):
 
     def launch_instance(self, request):
         sleep(WORK_TIME)
-        self.logger.write(
+        self.storage.write(
             Stat(
                 platform=self.platform_type,
                 request=request,
