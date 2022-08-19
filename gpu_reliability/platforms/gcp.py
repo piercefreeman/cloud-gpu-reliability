@@ -5,13 +5,14 @@ from click import secho
 from google.oauth2.service_account import Credentials
 from gpu_reliability.stats_logger import StatsLogger, Stat
 from google.api_core.exceptions import NotFound
+from json import loads
 
 
 class GCPPlatform(PlatformBase):
     def __init__(
         self,
         project_id: str,
-        service_account_path: str,
+        service_account: str,
         machine_type: str,
         accelerator_type: str,
         logger: StatsLogger,
@@ -33,7 +34,7 @@ class GCPPlatform(PlatformBase):
         self.create_timeout = create_timeout
         self.delete_timeout = delete_timeout
 
-        credentials = Credentials.from_service_account_file(service_account_path)
+        credentials = Credentials.from_service_account_info(loads(service_account))
         self.image_client = compute_v1.ImagesClient(credentials=credentials)
         self.instance_client = compute_v1.InstancesClient(credentials=credentials)
 

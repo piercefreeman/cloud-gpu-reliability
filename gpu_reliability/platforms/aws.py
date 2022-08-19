@@ -18,8 +18,8 @@ class AWSInstanceCodes(Enum):
 class AWSPlatform(PlatformBase):
     def __init__(
         self,
-        #access_key: str,
-        #secret_key: str,
+        access_key_id: str,
+        secret_key: str,
         machine_type: str,
         logger: StatsLogger,
         create_timeout: int = 200,
@@ -37,8 +37,8 @@ class AWSPlatform(PlatformBase):
         self.delete_timeout = delete_timeout
 
         self.session = Session(
-            #aws_access_key_id=access_key,
-            #aws_secret_access_key=secret_key,
+            aws_access_key_id=access_key_id,
+            aws_secret_access_key=secret_key,
         )
 
     @property

@@ -24,7 +24,6 @@ class StatsEncoder(JSONEncoder):
 @dataclass
 class Stat:
     platform: PlatformType
-    launch_identifier: UUID
     create_success: bool
     request: LaunchRequest
 
