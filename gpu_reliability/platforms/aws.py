@@ -4,6 +4,8 @@ from boto3 import Session
 from gpu_reliability.stats_logger import StatsLogger, Stat
 from enum import Enum
 from gpu_reliability.logging import logger
+from backoff import on_exception, expo
+from botocore.exceptions import ClientError
 
 
 class AWSInstanceCodes(Enum):
@@ -207,5 +209,8 @@ class AWSPlatform(PlatformBase):
 
         raise TimeoutError(f"Instance `{instance_id}` did not reach break condition`")
 
+    @on_exception(expo, ClientError, max_tries=8)
     def name_from_instance(self, instance):
+        # Sometimes AWS returns an error for these instances even if they do in fact exist
+        # https://stackoverflow.com/questions/8969677/aws-error-message-invalidinstanceid-notfound
         return [tag for tag in instance.tags if tag["Key"] == "Name"][0]["Value"]
