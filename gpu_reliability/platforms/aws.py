@@ -110,12 +110,14 @@ class AWSPlatform(PlatformBase):
 
         instance_id = created_instance["Instances"][0]["InstanceId"]
 
+        start = time()
         instance, state_type = self.wait_for_status(
             instance_id,
             lambda x: x != AWSInstanceCodes.PENDING,
             self.create_timeout,
             resource=resource,
         )
+        create_time = time() - start
 
         secho(f"Finished creating instance `{instance_name}`", fg="green")
 
@@ -129,7 +131,8 @@ class AWSPlatform(PlatformBase):
         self.logger.write(
             Stat(
                 platform=self.platform_type,
-                launch_identifier=self.launch_identifier,
+                request=self.should_launch,
+                create_seconds=create_time,
                 create_success=state_type == AWSInstanceCodes.RUNNING,
                 error=error,
             )
@@ -200,5 +203,5 @@ class AWSPlatform(PlatformBase):
 
         raise TimeoutError(f"Instance `{instance_id}` did not reach break condition`")
 
-    def name_from_instance(self, instance: Session.resource.Instance):
+    def name_from_instance(self, instance):
         return [tag for tag in instance.tags if tag["Key"] == "Name"][0]["Value"]

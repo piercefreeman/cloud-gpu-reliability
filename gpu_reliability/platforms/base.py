@@ -1,23 +1,15 @@
 from abc import ABC, abstractmethod
 from threading import Thread
 from time import sleep
-from uuid import uuid4
-from gpu_reliability.enums import PlatformType
+from uuid import uuid4, UUID
+from gpu_reliability.models import PlatformType, LaunchRequest
 from gpu_reliability.stats_logger import StatsLogger, Stat
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
 INSTANCE_TAG = "gpu-reliability-test"
 INSTANCE_TAG_VALUE = "true"
-
-
-@dataclass
-class LaunchRequest:
-    spot: bool
-    # Corresponds to region/zone where instance is spawned. AWS and GCP have different levels
-    # of granularity required here during spawning so we keep this key generic.
-    geography: str
 
 
 class PlatformBase(ABC):
@@ -33,7 +25,6 @@ class PlatformBase(ABC):
         self.cleanup_interval = cleanup_interval
 
         self.should_launch: Optional[LaunchRequest] = None
-        self.launch_identifier = None
         self.should_quit = False
 
     def set_should_launch(self, should_launch: LaunchRequest):
@@ -42,7 +33,6 @@ class PlatformBase(ABC):
         possible occasion in its runloop
         """
         self.should_launch = should_launch
-        self.launch_identifier = uuid4() if should_launch else None
 
     def quit(self):
         self.should_quit = True
@@ -58,7 +48,7 @@ class PlatformBase(ABC):
                     self.logger.write(
                         Stat(
                             platform=self.platform_type,
-                            launch_identifier=self.launch_identifier,
+                            request=self.should_launch,
                             create_success=False,
                             error=str(e)
                         )

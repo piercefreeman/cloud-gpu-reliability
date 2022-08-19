@@ -62,13 +62,13 @@ def benchmark(
     storage = StatsLogger(Path(output_path).expanduser())
 
     platforms = [
-        # GCPPlatform(
-        #     project_id=gcp_project,
-        #     machine_type="n1-standard-1",
-        #     accelerator_type="nvidia-tesla-t4",
-        #     service_account_path=gcp_service_account,
-        #     logger=storage,
-        # ),
+        GCPPlatform(
+            project_id=gcp_project,
+            machine_type="n1-standard-1",
+            accelerator_type="nvidia-tesla-t4",
+            service_account_path=gcp_service_account,
+            logger=storage,
+        ),
         AWSPlatform(
             machine_type="g4dn.xlarge",
             logger=storage,
@@ -98,3 +98,7 @@ def benchmark(
         for platform in platforms:
             platform.quit()
             platform.join()
+
+        # Cleanup any resources that are still remaining
+        for platform in platforms:
+            platform.cleanup_resources()
