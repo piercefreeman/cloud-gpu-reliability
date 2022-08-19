@@ -1,13 +1,14 @@
 from google.cloud import compute_v1
 from time import time
 from gpu_reliability.platforms.base import PlatformType, PlatformBase, LaunchRequest, INSTANCE_TAG, INSTANCE_TAG_VALUE
-from click import secho
 from google.oauth2.service_account import Credentials
 from gpu_reliability.stats_logger import StatsLogger, Stat
 from google.api_core.exceptions import NotFound
 from json import loads
+from gpu_reliability.logging import logger
 
 
+@logger
 class GCPPlatform(PlatformBase):
     def __init__(
         self,
@@ -15,7 +16,7 @@ class GCPPlatform(PlatformBase):
         service_account: str,
         machine_type: str,
         accelerator_type: str,
-        logger: StatsLogger,
+        storage: StatsLogger,
         create_timeout: int = 200,
         delete_timeout: int = 300,
     ):
@@ -26,7 +27,7 @@ class GCPPlatform(PlatformBase):
             `gcloud compute accelerator-types list --filter="zone:( us-central1-b us-east-a )"`
 
         """
-        super().__init__(logger=logger)
+        super().__init__(storage=storage)
         self.project_id = project_id
         self.machine_type = machine_type
         self.accelerator_type = accelerator_type
@@ -98,7 +99,7 @@ class GCPPlatform(PlatformBase):
         )
 
         # Wait for the create operation to complete.
-        secho(f"Creating instance `{instance_name}`...", fg="yellow")
+        self.logger.info(f"Creating instance `{instance_name}`...")
 
         operation = self.instance_client.insert(request=request)
         start = time()
@@ -107,11 +108,11 @@ class GCPPlatform(PlatformBase):
 
         self.log_operation_status(operation)
 
-        secho(f"Finished creating instance `{instance_name}`", fg="green")
+        self.logger.info(f"Finished creating instance `{instance_name}`")
         created_instance = self.instance_client.get(project=self.project_id, zone=request.geography, instance=instance_name)
 
         # Check status
-        self.logger.write(
+        self.storage.write(
             Stat(
                 platform=self.platform_type,
                 request=self.should_launch,
@@ -134,7 +135,7 @@ class GCPPlatform(PlatformBase):
                     f"[Code: {warning.code}]: {warning.message}"
                 )
 
-        self.logger.write(
+        self.storage.write(
             Stat(
                 platform=self.platform_type,
                 request=self.should_launch,
@@ -168,11 +169,11 @@ class GCPPlatform(PlatformBase):
                 # boxes that are still trying to bootstrap and/or have already started terminating.
                 if instance.status != "RUNNING":
                     pass
-                secho(f"Deleting `{instance.name}`...", fg="yellow")
+                self.logger.info(f"Deleting `{instance.name}`...")
                 operation = self.instance_client.delete(project=self.project_id, zone=zone, instance=instance.name)
                 try:
                     operation.result(timeout=self.delete_timeout)
                 except NotFound:
                     # Expected error because once instances are deleted the API can't retrieve them
                     pass
-                secho(f"Finished deleting `{instance.name}`", fg="green")
+                self.logger.info(f"Finished deleting `{instance.name}`")

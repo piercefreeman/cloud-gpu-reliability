@@ -13,7 +13,7 @@ INSTANCE_TAG_VALUE = "true"
 
 
 class PlatformBase(ABC):
-    def __init__(self, logger: StatsLogger, cleanup_interval=60):
+    def __init__(self, storage: StatsLogger, cleanup_interval=60):
         """
         :param cleanup_interval: How often to clean up resources (in seconds) even if we haven't
             actively launched an instance. Used for garbage collection in the case of unrecoverable
@@ -21,7 +21,7 @@ class PlatformBase(ABC):
 
         """
         self.thread = None
-        self.logger = logger
+        self.storage = storage
         self.cleanup_interval = cleanup_interval
 
         self.should_launch: Optional[LaunchRequest] = None
@@ -45,7 +45,7 @@ class PlatformBase(ABC):
                 try:
                     self.launch_instance(self.should_launch)
                 except Exception as e:
-                    self.logger.write(
+                    self.storage.write(
                         Stat(
                             platform=self.platform_type,
                             request=self.should_launch,

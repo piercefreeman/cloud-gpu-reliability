@@ -1,9 +1,9 @@
 from time import time, sleep
 from gpu_reliability.platforms.base import PlatformType, PlatformBase, LaunchRequest, INSTANCE_TAG, INSTANCE_TAG_VALUE
-from click import secho
 from boto3 import Session
 from gpu_reliability.stats_logger import StatsLogger, Stat
 from enum import Enum
+from gpu_reliability.logging import logger
 
 
 class AWSInstanceCodes(Enum):
@@ -15,13 +15,14 @@ class AWSInstanceCodes(Enum):
     STOPPED = 80
 
 
+@logger
 class AWSPlatform(PlatformBase):
     def __init__(
         self,
         access_key_id: str,
         secret_key: str,
         machine_type: str,
-        logger: StatsLogger,
+        storage: StatsLogger,
         create_timeout: int = 200,
         delete_timeout: int = 300,
     ):
@@ -30,7 +31,7 @@ class AWSPlatform(PlatformBase):
         :param machine_type: AWS supported machine type
 
         """
-        super().__init__(logger=logger)
+        super().__init__(storage=storage)
         self.machine_type = machine_type
 
         self.create_timeout = create_timeout
@@ -66,7 +67,7 @@ class AWSPlatform(PlatformBase):
                 }
             }
 
-        secho(f"Creating instance `{instance_name}`...", fg="yellow")
+        self.logger.info(f"Creating instance `{instance_name}`...")
 
         # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.run_instances
         created_instance = client.run_instances(
@@ -119,7 +120,7 @@ class AWSPlatform(PlatformBase):
         )
         create_time = time() - start
 
-        secho(f"Finished creating instance `{instance_name}`", fg="green")
+        self.logger.info(f"Finished creating instance `{instance_name}`")
 
         error = None
         if state_type != AWSInstanceCodes.RUNNING:
@@ -128,7 +129,7 @@ class AWSPlatform(PlatformBase):
             error = f"[Code: {final_state_code}]: {final_state_text}"
 
         # Check status
-        self.logger.write(
+        self.storage.write(
             Stat(
                 platform=self.platform_type,
                 request=self.should_launch,
@@ -169,7 +170,7 @@ class AWSPlatform(PlatformBase):
                 instances.terminate()
 
                 instance_name = self.name_from_instance(instance)
-                secho(f"Deleting `{instance_name}`...", fg="yellow")
+                self.logger.info(f"Deleting `{instance_name}`...")
 
                 self.wait_for_status(
                     instance_id,
@@ -178,7 +179,7 @@ class AWSPlatform(PlatformBase):
                     resource=resource,
                 )
 
-                secho(f"Finished deleting `{instance_name}`", fg="green")
+                self.logger.info(f"Finished deleting `{instance_name}`")
 
     def wait_for_status(
         self,
@@ -192,7 +193,7 @@ class AWSPlatform(PlatformBase):
             instance = resource.Instance(instance_id)
             instance_name = self.name_from_instance(instance)
             state_type = AWSInstanceCodes(instance.state["Code"])
-            secho(f"{instance_name} - {state_type}")
+            self.logger.info(f"Status `{instance_name}`: {state_type}")
 
             # Once we resolve the status of the resource, we don"t have to wait any longer
             if break_condition(state_type):
