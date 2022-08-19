@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
 from threading import Thread
 from time import sleep
-from uuid import uuid4
-from gpu_reliability.enums import PlatformType
+from uuid import uuid4, UUID
+from gpu_reliability.models import PlatformType, LaunchRequest
 from gpu_reliability.stats_logger import StatsLogger, Stat
+from dataclasses import dataclass, field
+from typing import Optional
 
 
 INSTANCE_TAG = "gpu-reliability-test"
@@ -22,17 +24,15 @@ class PlatformBase(ABC):
         self.logger = logger
         self.cleanup_interval = cleanup_interval
 
-        self.should_launch = False
-        self.launch_identifier = None
+        self.should_launch: Optional[LaunchRequest] = None
         self.should_quit = False
 
-    def set_should_launch(self, should_launch: bool):
+    def set_should_launch(self, should_launch: LaunchRequest):
         """
         When called, the worker thread will create a GPU instance on the next
         possible occasion in its runloop
         """
         self.should_launch = should_launch
-        self.launch_identifier = uuid4() if should_launch else None
 
     def quit(self):
         self.should_quit = True
@@ -43,19 +43,19 @@ class PlatformBase(ABC):
         while True:
             if self.should_launch:
                 try:
-                    self.launch_instance()
+                    self.launch_instance(self.should_launch)
                 except Exception as e:
                     self.logger.write(
                         Stat(
                             platform=self.platform_type,
-                            launch_identifier=self.launch_identifier,
+                            request=self.should_launch,
                             create_success=False,
                             error=str(e)
                         )
                     )
                     raise
                 finally:
-                    self.set_should_launch(False)
+                    self.set_should_launch(None)
                     self.cleanup_resources()
 
             if self.should_quit:

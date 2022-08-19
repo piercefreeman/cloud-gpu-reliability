@@ -1,6 +1,6 @@
 from google.cloud import compute_v1
 from time import time
-from gpu_reliability.platforms.base import PlatformType, PlatformBase, INSTANCE_TAG, INSTANCE_TAG_VALUE
+from gpu_reliability.platforms.base import PlatformType, PlatformBase, LaunchRequest, INSTANCE_TAG, INSTANCE_TAG_VALUE
 from click import secho
 from google.oauth2.service_account import Credentials
 from gpu_reliability.stats_logger import StatsLogger, Stat
@@ -12,10 +12,8 @@ class GCPPlatform(PlatformBase):
         self,
         project_id: str,
         service_account_path: str,
-        zone: str,
         machine_type: str,
         accelerator_type: str,
-        spot: bool,
         logger: StatsLogger,
         create_timeout: int = 200,
         delete_timeout: int = 300,
@@ -29,10 +27,8 @@ class GCPPlatform(PlatformBase):
         """
         super().__init__(logger=logger)
         self.project_id = project_id
-        self.zone = zone
         self.machine_type = machine_type
         self.accelerator_type = accelerator_type
-        self.spot = spot
 
         self.create_timeout = create_timeout
         self.delete_timeout = delete_timeout
@@ -45,16 +41,16 @@ class GCPPlatform(PlatformBase):
     def platform_type(self) -> PlatformType:
         return PlatformType.GCP
 
-    def launch_instance(self):
+    def launch_instance(self, request: LaunchRequest):
         instance_name = f"gpu-test-{int(time())}"
 
         instance = compute_v1.Instance(
             name=instance_name,
-            machine_type=f"zones/{self.zone}/machineTypes/{self.machine_type}",
+            machine_type=f"zones/{request.geography}/machineTypes/{self.machine_type}",
             guest_accelerators=[
                 compute_v1.AcceleratorConfig(
                     accelerator_count=1,
-                    accelerator_type=f"/zones/{self.zone}/acceleratorTypes/{self.accelerator_type}",
+                    accelerator_type=f"/zones/{request.geography}/acceleratorTypes/{self.accelerator_type}",
                 )
             ],
             labels={
@@ -69,7 +65,7 @@ class GCPPlatform(PlatformBase):
                 initialize_params=compute_v1.AttachedDiskInitializeParams(
                     source_image=self.get_image().self_link,
                     disk_size_gb=10,
-                    disk_type=f"/projects/{self.project_id}/zones/{self.zone}/diskTypes/pd-standard"
+                    disk_type=f"/projects/{self.project_id}/zones/{request.geography}/diskTypes/pd-standard"
                 )
             )
         ]
@@ -83,7 +79,7 @@ class GCPPlatform(PlatformBase):
             on_host_maintenance="TERMINATE",
         )
 
-        if self.spot:
+        if request.spot:
             # Spot VM settings, which replaces preemptible tasks in GCP
             instance.scheduling.provisioning_model = (
                 compute_v1.Scheduling.ProvisioningModel.SPOT.name
@@ -95,7 +91,7 @@ class GCPPlatform(PlatformBase):
 
         # Prepare the request to insert an instance.
         request = compute_v1.InsertInstanceRequest(
-            zone=self.zone,
+            zone=request.geography,
             project=self.project_id,
             instance_resource=instance,
         )
@@ -104,24 +100,25 @@ class GCPPlatform(PlatformBase):
         secho(f"Creating instance `{instance_name}`...", fg="yellow")
 
         operation = self.instance_client.insert(request=request)
+        start = time()
         operation.result(timeout=self.create_timeout)
+        create_time = time() - start
 
         self.log_operation_status(operation)
 
         secho(f"Finished creating instance `{instance_name}`", fg="green")
-        created_instance = self.instance_client.get(project=self.project_id, zone=self.zone, instance=instance_name)
+        created_instance = self.instance_client.get(project=self.project_id, zone=request.geography, instance=instance_name)
 
         # Check status
         self.logger.write(
             Stat(
                 platform=self.platform_type,
-                launch_identifier=self.launch_identifier,
+                request=self.should_launch,
                 create_success=created_instance.status == "RUNNING",
+                create_seconds=create_time,
                 error=created_instance.status,
             )
         )
-
-        self.cleanup_resources()
 
     def log_operation_status(self, operation):
         error = None
@@ -139,7 +136,7 @@ class GCPPlatform(PlatformBase):
         self.logger.write(
             Stat(
                 platform=self.platform_type,
-                launch_identifier=self.launch_identifier,
+                request=self.should_launch,
                 create_success=error is None,
                 error=error,
                 warnings=warnings,
@@ -152,7 +149,7 @@ class GCPPlatform(PlatformBase):
         return newest_image
 
     def cleanup_resources(self):
-        # Search through all zones in case we have modified the self.zone paramter
+        # Search through all zones in case we have modified the request.geography paramter
         # and still have remaining instances in other zones.
         active_instances = self.instance_client.aggregated_list(
             request=compute_v1.AggregatedListInstancesRequest(
@@ -170,7 +167,7 @@ class GCPPlatform(PlatformBase):
                 # boxes that are still trying to bootstrap and/or have already started terminating.
                 if instance.status != "RUNNING":
                     pass
-                secho(f"Deleting `{instance.name}`", fg="yellow")
+                secho(f"Deleting `{instance.name}`...", fg="yellow")
                 operation = self.instance_client.delete(project=self.project_id, zone=zone, instance=instance.name)
                 try:
                     operation.result(timeout=self.delete_timeout)
