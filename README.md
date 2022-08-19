@@ -17,10 +17,16 @@ This repo manages dependencies with [poetry](https://python-poetry.org/). A regu
 poetry install
 ```
 
-You'll also have to configure an `.env` file with your AWS and GCP credentials in order to execute. This should be relatively straightforward given the key names that are specified in Settings.
+You'll also have to configure an `.env` file with your AWS and GCP credentials in order to execute. This should be relatively straightforward given the key names that are specified in Settings. To encode the GCP service key, you'll have to do something like:
 
 ```
 cat ~/personal-gcp-service-key.json | base64
+```
+
+When you're ready to run the trial:
+
+```
+docker-compose up
 ```
 
 ## Errors

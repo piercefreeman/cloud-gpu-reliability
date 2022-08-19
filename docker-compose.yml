@@ -7,5 +7,10 @@ services:
       - .env
     volumes:
       - ./data:/data
-    entrypoint: ["poetry", "run", "benchmark", "--output-path", "/data/results.jsonl"]
+    entrypoint: [
+      "poetry",
+      "run",
+      "benchmark",
+      "--output-path", "/data/results.jsonl",
+    ]
     restart: always
