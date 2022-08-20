@@ -1,7 +1,7 @@
 from gpu_reliability.stats_logger import StatsLogger, Stat
 from json import dumps, loads
 from gpu_reliability.platforms.base import PlatformType
-from uuid import uuid4
+from gpu_reliability.models import LaunchRequest
 
 def test_init_file(stats_path):
     assert not stats_path.exists()
@@ -16,7 +16,7 @@ def test_extend_existing_file(stats_path):
     stats_logger.write(
         Stat(
             platform=PlatformType.GCP,
-            launch_identifier=uuid4(),
+            request=LaunchRequest(spot=False, geography="test-zone"),
             create_success=True,
         )
     )

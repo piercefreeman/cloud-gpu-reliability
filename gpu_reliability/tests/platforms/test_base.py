@@ -1,18 +1,22 @@
 from gpu_reliability.platforms.base import PlatformBase
-from gpu_reliability.enums import PlatformType
+from gpu_reliability.models import PlatformType, LaunchRequest
 from time import sleep
 from gpu_reliability.stats_logger import StatsLogger, Stat
 from json import loads
+import pytest
 
 WORK_TIME = 1
+
+class FakeException(Exception):
+    pass
 
 class CrashingPlatform(PlatformBase):
     @property
     def platform_type(self) -> PlatformType:
         return PlatformType.GCP
 
-    def launch_instance(self):
-        raise Exception("I crashed")
+    def launch_instance(self, _):
+        raise FakeException("I crashed")
 
     def cleanup_resources(self):
         pass
@@ -22,12 +26,12 @@ class SuccessfulPlatform(PlatformBase):
     def platform_type(self) -> PlatformType:
         return PlatformType.GCP
 
-    def launch_instance(self):
+    def launch_instance(self, request):
         sleep(WORK_TIME)
-        self.logger.write(
+        self.storage.write(
             Stat(
                 platform=self.platform_type,
-                launch_identifier=self.launch_identifier,
+                request=request,
                 create_success=True,
             )
         )
@@ -35,6 +39,8 @@ class SuccessfulPlatform(PlatformBase):
     def cleanup_resources(self):
         pass
 
+
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
 def test_keepalive_threads(stats_path):
     """
     Ensure that if one thread crashes, the others will stay alive

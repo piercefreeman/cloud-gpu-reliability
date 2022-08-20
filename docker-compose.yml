@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  benchmark:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+    entrypoint: [
+      "poetry",
+      "run",
+      "benchmark",
+      "--output-path", "/data/results.jsonl",
+      "--daily-samples", "200",
+    ]
+    restart: always

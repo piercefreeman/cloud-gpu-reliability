@@ -7,6 +7,7 @@ from time import sleep
 from random import random, choice
 from contextlib import contextmanager
 from pathlib import Path
+from gpu_reliability.settings import Settings
 
 
 @contextmanager
@@ -38,6 +39,7 @@ AWS_REGIONS = [
     "us-east-1",
 ]
 
+
 def create_random_request(platform_type: PlatformType) -> LaunchRequest:
     return LaunchRequest(
         spot=choice(SPOT_STATUS),
@@ -46,32 +48,29 @@ def create_random_request(platform_type: PlatformType) -> LaunchRequest:
 
 
 @command()
-@option("--aws-service-account", type=ClickPath(exists=True), required=False)
-@option("--gcp-project", type=str, required=True)
-@option("--gcp-service-account", type=ClickPath(exists=True), required=True)
 @option("--output-path", type=ClickPath(exists=False), required=True)
 @option("--daily-samples", type=int, default=24 * 2)
 def benchmark(
-    aws_service_account,
-    gcp_project,
-    gcp_service_account,
     output_path,
     daily_samples,
     sleep_interval=10,
 ):
+    settings = Settings()
     storage = StatsLogger(Path(output_path).expanduser())
 
     platforms = [
         GCPPlatform(
-            project_id=gcp_project,
+            project_id=settings.gcp_project,
             machine_type="n1-standard-1",
             accelerator_type="nvidia-tesla-t4",
-            service_account_path=gcp_service_account,
-            logger=storage,
+            service_account=settings.gcp_service_account,
+            storage=storage,
         ),
         AWSPlatform(
+            access_key_id=settings.aws_access_key_id,
+            secret_key=settings.aws_access_secret_key,
             machine_type="g4dn.xlarge",
-            logger=storage,
+            storage=storage,
         )
     ]
 
