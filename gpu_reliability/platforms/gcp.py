@@ -6,6 +6,7 @@ from gpu_reliability.stats_logger import StatsLogger, Stat
 from google.api_core.exceptions import NotFound
 from json import loads
 from gpu_reliability.logging import logger
+from uuid import uuid1
 
 
 @logger
@@ -44,7 +45,9 @@ class GCPPlatform(PlatformBase):
         return PlatformType.GCP
 
     def launch_instance(self, request: LaunchRequest):
-        instance_name = f"gpu-test-{int(time())}"
+        uuid = str(uuid1())
+        instance_name = f"gpu-test-{uuid}"
+
 
         instance = compute_v1.Instance(
             name=instance_name,
@@ -96,6 +99,7 @@ class GCPPlatform(PlatformBase):
             zone=request.geography,
             project=self.project_id,
             instance_resource=instance,
+            request_id=uuid,
         )
 
         # Wait for the create operation to complete.
