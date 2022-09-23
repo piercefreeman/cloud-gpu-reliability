@@ -172,7 +172,7 @@ class GCPPlatform(PlatformBase):
                 # Only attempt to shut down running instances, otherwise we might clear away
                 # boxes that are still trying to bootstrap and/or have already started terminating.
                 if instance.status != "RUNNING":
-                    pass
+                    continue
                 self.logger.info(f"Deleting `{instance.name}`...")
                 operation = self.instance_client.delete(project=self.project_id, zone=zone, instance=instance.name)
                 try:
