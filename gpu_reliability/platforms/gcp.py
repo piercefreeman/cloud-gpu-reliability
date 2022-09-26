@@ -151,7 +151,7 @@ class GCPPlatform(PlatformBase):
 
     def get_image(self) -> compute_v1.Image:
         # List of public operating system (OS) images: https://cloud.google.com/compute/docs/images/os-details
-        newest_image = self.image_client.get_from_family(project="ubuntu-os-cloud", family="ubuntu-2204-lts-arm64")
+        newest_image = self.image_client.get_from_family(project="debian-cloud", family="debian-11")
         return newest_image
 
     def cleanup_resources(self):
