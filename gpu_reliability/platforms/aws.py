@@ -71,6 +71,7 @@ class AWSPlatform(PlatformBase):
 
         self.logger.info(f"Creating instance `{instance_name}`...")
 
+        start = time()
         # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.run_instances
         created_instance = client.run_instances(
             BlockDeviceMappings=[
@@ -113,7 +114,6 @@ class AWSPlatform(PlatformBase):
 
         instance_id = created_instance["Instances"][0]["InstanceId"]
 
-        start = time()
         instance, state_type = self.wait_for_status(
             instance_id,
             lambda x: x != AWSInstanceCodes.PENDING,
@@ -190,7 +190,7 @@ class AWSPlatform(PlatformBase):
         break_condition,
         max_wait: int,
         resource: Session.resource,
-        check_interval: int = 10,
+        check_interval: int = 1,
     ):
         instance = resource.Instance(instance_id)
         instance_name = self.name_from_instance(instance)

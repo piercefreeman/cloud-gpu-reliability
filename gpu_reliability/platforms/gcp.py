@@ -1,3 +1,5 @@
+import functools
+
 from google.cloud import compute_v1
 from time import time
 from gpu_reliability.platforms.base import PlatformType, PlatformBase, LaunchRequest, INSTANCE_TAG, INSTANCE_TAG_VALUE
@@ -105,8 +107,10 @@ class GCPPlatform(PlatformBase):
         # Wait for the create operation to complete.
         self.logger.info(f"Creating instance `{instance_name}`...")
 
-        operation = self.instance_client.insert(request=create_request)
         start = time()
+        operation = self.instance_client.insert(request=create_request)
+        wait_func = functools.partial(compute_v1.ZoneOperationsClient().wait, operation=operation.name, zone=request.geography, project=self.project_id)
+        operation._refresh = wait_func
         operation.result(timeout=self.create_timeout)
         create_time = time() - start
 
