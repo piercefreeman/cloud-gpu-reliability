@@ -40,6 +40,7 @@ class GCPPlatform(PlatformBase):
         credentials = Credentials.from_service_account_info(loads(service_account))
         self.image_client = compute_v1.ImagesClient(credentials=credentials)
         self.instance_client = compute_v1.InstancesClient(credentials=credentials)
+        self.zone_operations_client = compute_v1.ZoneOperationsClient(credentials=credentials)
 
     @property
     def platform_type(self) -> PlatformType:
@@ -71,7 +72,7 @@ class GCPPlatform(PlatformBase):
                 initialize_params=compute_v1.AttachedDiskInitializeParams(
                     source_image=self.get_image().self_link,
                     disk_size_gb=10,
-                    disk_type=f"/projects/{self.project_id}/zones/{request.geography}/diskTypes/pd-standard"
+                    disk_type=f"/projects/{self.project_id}/zones/{request.geography}/diskTypes/pd-ssd"
                 )
             )
         ]
@@ -111,7 +112,7 @@ class GCPPlatform(PlatformBase):
         # Until the GCE Client Library is fixed, replace the "get" method with "wait", which is a hanging call that returns
         # when the operation is complete.
         # Original call site: https://github.com/googleapis/python-api-core/blob/9abc6f48f23c87b9771dca3c96b4f6af39620a50/google/api_core/extended_operation.py#L142
-        wait_func = partial(compute_v1.ZoneOperationsClient().wait, operation=operation.name, zone=request.geography, project=self.project_id)
+        wait_func = partial(self.zone_operations_client.wait, operation=operation.name, zone=request.geography, project=self.project_id)
         operation._refresh = wait_func
         operation.result(timeout=self.create_timeout)
         create_time = time() - start

@@ -61,7 +61,7 @@ def benchmark(
     platforms = [
         GCPPlatform(
             project_id=settings.gcp_project,
-            machine_type="n1-standard-1",
+            machine_type="n1-standard-4",
             accelerator_type="nvidia-tesla-t4",
             service_account=settings.gcp_service_account,
             storage=storage,
